@@ -126,8 +126,11 @@ public class MailClientUI extends JFrame {
         JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
         JButton composeButton = new JButton("Soạn thư");
         JButton searchButton = new JButton("Tìm kiếm");
+        JButton deleteButton = new JButton("Xóa Email"); // <-- Added button
+
         toolbar.add(composeButton);
         toolbar.add(searchButton);
+        toolbar.add(deleteButton);
         add(toolbar, BorderLayout.NORTH);
 
         // Hành động bấm nút Soạn thư
@@ -137,6 +140,40 @@ public class MailClientUI extends JFrame {
                 showComposeDialog();
             }
         });
+
+        deleteButton.addActionListener(new ActionListener() {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            int selectedRow = emailTable.getSelectedRow();
+            if (selectedRow == -1) {
+                JOptionPane.showMessageDialog(MailClientUI.this,
+                        "Vui lòng chọn một email để xóa.",
+                        "Error",
+                        JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            String emailId = emailTable.getValueAt(selectedRow, 0).toString();
+
+            POP3Client pop3 = new POP3Client("localhost", 1100);
+            if (pop3.connect()) {
+                if (pop3.login(currentUserEmail, currentUserPassword)) {
+                    if (pop3.deleteEmail(new org.bson.types.ObjectId(emailId))) {
+                        JOptionPane.showMessageDialog(MailClientUI.this,
+                                "Đã xóa email thành công!",
+                                "Success",
+                                JOptionPane.INFORMATION_MESSAGE);
+                        loadEmails(); // reload emails
+                    } else {
+                        JOptionPane.showMessageDialog(MailClientUI.this,
+                                "Không thể xóa email.",
+                                "Error",
+                                JOptionPane.ERROR_MESSAGE);
+                    }
+                    pop3.quit();
+                }
+            }
+        }
+    });
 
         // Hành động chọn email trong bảng
         emailTable.getSelectionModel().addListSelectionListener(event -> {

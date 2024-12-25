@@ -171,6 +171,20 @@ public class POP3Handler implements Runnable {
                             out.write("-ERR Not authenticated\r\n");
                         }
                         break;
+                    case "DEL":
+                        if (authenticated) {
+                            String objectIdStr = parts[1];
+                            Document emailDoc = emailsCollection.find(eq("_id", new ObjectId(objectIdStr))).first();
+                            if (emailDoc != null) {
+                                emailsCollection.deleteOne(eq("_id", emailDoc.getObjectId("_id")));
+                                out.write("+OK\r\n");
+                            } else {
+                                out.write("+FALSE\r\n");
+                            }
+                        } else {
+                            out.write("-ERR Not authenticated\r\n");
+                        }
+                        break;
                     
                     default:
                         out.write("-ERR Unknown command\r\n");
