@@ -1,5 +1,6 @@
 package org.example.Client;
 
+import org.bson.types.ObjectId;
 import org.example.Client.Email.POP3Client;
 import org.example.Client.Email.SMTPClient;
 import org.example.Client.Entity.Email;
@@ -142,7 +143,7 @@ public class MailClientUI extends JFrame {
             if (!event.getValueIsAdjusting() && emailTable.getSelectedRow() != -1) {
                 int selectedRow = emailTable.getSelectedRow();
                 String emailId = emailTable.getValueAt(selectedRow, 0).toString();
-                loadEmailContent(Integer.parseInt(emailId));
+                loadEmailContent(new ObjectId(emailId));
             }
         });
 
@@ -295,7 +296,7 @@ public class MailClientUI extends JFrame {
                         String[] parts = emailInfo.split(" ");
                         if (parts.length >= 2) {
                             try {
-                                int id = Integer.parseInt(parts[0]);
+                                ObjectId id = new ObjectId(parts[0]);
                                 String content = pop3.retrieveEmail(id).toString();
                                 if (emailInfo != null ) {
                                     String sender = extractSender(content);
@@ -310,7 +311,7 @@ public class MailClientUI extends JFrame {
                                 e.printStackTrace();
                                 // If spam check fails, show in non-spam folder
                                 if (!loadSpam) {
-                                    String content = pop3.retrieveEmail(Integer.parseInt(parts[0])).toString();
+                                    String content = pop3.retrieveEmail(new ObjectId(parts[0])).toString();
                                     String sender = extractSender(content);
                                     String receiver = extractReceiver(content);
                                     String subject = extractSubject(content);
@@ -347,7 +348,7 @@ public class MailClientUI extends JFrame {
                     for (String emailInfo : emails) {
                         String[] parts = emailInfo.split(" ");
                         if (parts.length >= 2) {
-                            int id = Integer.parseInt(parts[0]);
+                            ObjectId id = new ObjectId(parts[0]);
                             Email email = pop3.retrieveSentEmail(id);
                             if (email != null) {
                                 model.addRow(new Object[]{
@@ -369,12 +370,26 @@ public class MailClientUI extends JFrame {
         }
     }
 
-    private void loadEmailContent(int id) {
+    private void loadEmailContent(ObjectId id) {
         POP3Client pop3 = new POP3Client("localhost", 1100);
         if (pop3.connect()) {
             if (pop3.login(currentUserEmail, currentUserPassword)) { // Sử dụng mật khẩu đã lưu
+                if(currentView == VIEW_SENT) {
+                    String email = pop3.retrieveSentEmail(id).toString();
+                    if (email == null) {
+                        emailContent.setText("Không thể tải email");
+                        return;
+                    }
+                    emailContent.setText(email);
+                    return;
+                }
                 String content = pop3.retrieveEmail(id).toString();
-                emailContent.setText(content);
+                if (content == null) {
+                    emailContent.setText("Không thể tải email");
+                } else {
+                    emailContent.setText(content);
+                }
+
             }
             pop3.quit();
         }

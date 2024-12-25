@@ -1,5 +1,6 @@
 package org.example.Client.Email;
 
+import org.bson.types.ObjectId;
 import org.example.Client.Entity.Email;
 
 import java.io.*;
@@ -86,7 +87,7 @@ public class POP3Client {
         return emails;
     }
 
-    public Email retrieveEmail(int id) {
+    public Email retrieveEmail(ObjectId id) {
         try {
             out.write("RETR " + id + "\r\n");
             out.flush();
@@ -119,7 +120,8 @@ public class POP3Client {
                 headers.get("Subject"),
                 headers.get("From"),
                 headers.get("To"),
-                body.toString()
+                body.toString(),
+                id
             );
         } catch (IOException e) {
             e.printStackTrace();
@@ -144,7 +146,7 @@ public class POP3Client {
         return emails;
     }
 
-    public Email retrieveSentEmail(int id) {
+    public Email retrieveSentEmail(ObjectId id) {
         try {
             out.write("RETR_SENT " + id + "\r\n");
             out.flush();
@@ -177,7 +179,53 @@ public class POP3Client {
                 headers.get("Subject"),
                 headers.get("From"),
                 headers.get("To"),
-                body.toString()
+                body.toString(),
+                id
+            );
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public Email retrieveEmailByObjectId(ObjectId id) {
+        try {
+            out.write("RETR_ID " + id.toString() + "\r\n");
+            out.flush();
+            String response = in.readLine();
+            System.out.println("POP3 Server: " + response);
+
+            if (!response.startsWith("+OK")) {
+                return null;
+            }
+
+            Map<String, String> headers = new HashMap<>();
+            StringBuilder body = new StringBuilder();
+            String line;
+            boolean isBody = false;
+
+            while (!(line = in.readLine()).equals(".")) {
+                if (!isBody && line.isEmpty()) {
+                    isBody = true;
+                    continue;
+                }
+                if (!isBody) {
+                    String[] headerParts = line.split(": ", 2);
+                    if (headerParts.length == 2) {
+                        headers.put(headerParts[0], headerParts[1]);
+                    }
+                } else {
+                    body.append(line).append("\n");
+                }
+            }
+
+            return new Email(
+                headers.get("Date"),
+                headers.get("Subject"),
+                headers.get("From"),
+                headers.get("To"),
+                body.toString(),
+                id
             );
         } catch (IOException e) {
             e.printStackTrace();

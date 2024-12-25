@@ -1,14 +1,18 @@
 package org.example.Client.Entity;
 
 
+import org.bson.types.ObjectId;
+
 public class Email {
+    private ObjectId _id;
     private String date;
     private String subject;
     private String from;
     private String to;
     private String body;
 
-    public Email(String date, String subject, String from, String to, String body) {
+    public Email(String date, String subject, String from, String to, String body, ObjectId _id) {
+        this._id = _id;
         this.date = date;
         this.subject = subject;
         this.from = from;

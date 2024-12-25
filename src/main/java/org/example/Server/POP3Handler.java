@@ -3,6 +3,7 @@ package org.example.Server;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import org.bson.Document;
+import org.bson.types.ObjectId;
 import org.example.Database.MongoDBConnection;
 import org.example.Service.UserService;
 import org.slf4j.Logger;
@@ -77,58 +78,49 @@ public class POP3Handler implements Runnable {
                             List<Document> emails = emailsCollection.find(
                                             and(eq("to", currentUserEmail), eq("isSpam", filterSpam))
                                     )
-                                    .projection(fields(include("to", "isSpam", "body"), excludeId()))
                                     .into(new ArrayList<>());
 
-                            System.out.println("POP3 List emails: " + emails.size() + " (Spam: " + filterSpam + ")" + " for " + currentUserEmail);
+                            System.out.println("POP3 List emails found: " + emails.size() + " emails for " + currentUserEmail);
                             out.write("+OK " + emails.size() + " messages\r\n");
                             if (emails.size() > 0) {
-                                int id = 1;
                                 for (Document emailDoc : emails) {
                                     String body = emailDoc.getString("body");
+                                    ObjectId idObj = emailDoc.getObjectId("_id");
+                                    String id = idObj != null ? idObj.toHexString() : "";
+
                                     int bodyLength = body != null ? body.length() : 0;
                                     out.write(id + " " + bodyLength + "\r\n");
-                                    id++;
                                 }
                             }
                             out.write(".\r\n");
-                            out.flush();
                         } else {
                             out.write("-ERR Not authenticated\r\n");
                         }
                         break;
                     case "RETR":
                         if (authenticated) {
-                            int emailId = Integer.parseInt(parts[1]);
-                            List<Document> emails = emailsCollection.find(eq("to", currentUserEmail)).into(new ArrayList<>());
-
-                            if (emailId > 0 && emailId <= emails.size()) {
-                                Document emailDoc = emails.get(emailId - 1);
+                            String objectIdStr = parts[1];
+                            Document emailDoc = emailsCollection.find(eq("_id", new ObjectId(objectIdStr))).first();
+                            if (emailDoc != null) {
                                 String body = emailDoc.getString("body");
                                 if (body == null) body = "";
-
                                 SimpleDateFormat dateFormat = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss Z", Locale.ENGLISH);
                                 String formattedDate = dateFormat.format(emailDoc.getDate("timestamp"));
 
                                 out.write("+OK " + body.length() + " octets\r\n");
                                 out.write("From: " + emailDoc.getString("from") + "\r\n");
-
-                                // Fixed recipient handling
                                 ArrayList<String> recipients = emailDoc.get("to", ArrayList.class);
-                                String toField = recipients != null ? String.join(", ", recipients) : currentUserEmail;
+                                String toField = recipients != null ? String.join(", ", recipients) : "";
                                 out.write("To: " + toField + "\r\n");
-
                                 out.write("Subject: " + emailDoc.getString("subject") + "\r\n");
                                 out.write("Date: " + formattedDate + "\r\n");
                                 out.write("\r\n");
                                 out.write(body + "\r\n");
                                 out.write(".\r\n");
-                                // Đánh dấu email đã đọc
-                                emailsCollection.updateOne(eq("_id", emailDoc.getObjectId("_id")), new Document("$set", new Document("isRead", true)));
-                                System.out.println("POP3 Retrieved email ID: " + emailId);
+                                emailsCollection.updateOne(eq("_id", emailDoc.getObjectId("_id")),
+                                                           new Document("$set", new Document("isRead", true)));
                             } else {
                                 out.write("-ERR No such message\r\n");
-                                System.out.println("POP3 Error: No such message ID " + emailId);
                             }
                         } else {
                             out.write("-ERR Not authenticated\r\n");
@@ -142,26 +134,23 @@ public class POP3Handler implements Runnable {
                         if (authenticated) {
                             List<Document> sentEmails = emailsCollection.find(eq("from", currentUserEmail)).into(new ArrayList<>());
                             out.write("+OK " + sentEmails.size() + " messages\r\n");
-                            int id = 1;
                             for (Document emailDoc : sentEmails) {
+                                ObjectId idObj = emailDoc.getObjectId("_id");
+                                String id = idObj != null ? idObj.toHexString() : "";
                                 out.write(id + " " + emailDoc.getString("body").length() + "\r\n");
-                                id++;
                             }
                             out.write(".\r\n");
                         } else {
                             out.write("-ERR Not authenticated\r\n");
                         }
                         break;
-
                     case "RETR_SENT":
-                        if (authenticated) {
-                            int emailId = Integer.parseInt(parts[1]);
-                            List<Document> sentEmails = emailsCollection.find(eq("from", currentUserEmail)).into(new ArrayList<>());
-                            if (emailId > 0 && emailId <= sentEmails.size()) {
-                                Document emailDoc = sentEmails.get(emailId - 1);
+                        if (authenticated){
+                            String objectIdStr = parts[1];
+                            Document emailDoc = emailsCollection.find(eq("_id", new ObjectId(objectIdStr))).first();
+                            if (emailDoc != null) {
                                 String body = emailDoc.getString("body");
                                 if (body == null) body = "";
-
                                 SimpleDateFormat dateFormat = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss Z", Locale.ENGLISH);
                                 String formattedDate = dateFormat.format(emailDoc.getDate("timestamp"));
 
@@ -182,6 +171,7 @@ public class POP3Handler implements Runnable {
                             out.write("-ERR Not authenticated\r\n");
                         }
                         break;
+                    
                     default:
                         out.write("-ERR Unknown command\r\n");
                 }
